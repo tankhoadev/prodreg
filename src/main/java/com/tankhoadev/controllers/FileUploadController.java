@@ -5,7 +5,6 @@ import java.io.IOException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -16,12 +15,12 @@ import com.tankhoadev.util.FileUpload;
 import com.tankhoadev.util.FileUploadResponse;
 
 @RestController
-@RequestMapping("/forms")
-public class UploadController {
+@RequestMapping("/upload")
+public class FileUploadController {
       
-   @PostMapping("/upload")
-   public ResponseEntity<FileUploadResponse> uploadFile(@RequestParam("file") MultipartFile multipartFile) 
-         throws IOException {      
+   @PostMapping
+   public ResponseEntity<FileUploadResponse> uploadFile(@RequestParam("file") MultipartFile multipartFile) throws IOException 
+   {      
       String fileName = StringUtils.cleanPath(multipartFile.getOriginalFilename());
       long size = multipartFile.getSize();
       
