@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <title>Leviton - Product Registration</title>
+      <script src="./../jquery/1.11.3/jquery.min.js"></script>
+      <script src="./../scripts/html5-qrcode.min.js"></script>
+
+      <script>
+         let g_camera = undefined, g_qrreader = undefined;
+
+         let g_products =
+            [
+               { id: 1, catalog: "", serial: "", datecode: "" }
+            ];
+
+         window.onload = window_onload;
+
+         //#############################################################################################################################
+         //Description : * 
+         //-----------------------------------------------------------------------------------------------------------------------------
+         function window_onload()
+         {
+            regEvents();
+            getCameras();
+
+            //parse URL for default product info, If exists, update 
+            var product = parseProduct(document.location.href);
+            if(product)
+            {
+               const prod1 = g_products.find(e => e.id == 1);
+               prod1.catalog = product.catalog;
+               prod1.serial = product.serial;
+               prod1.datecode = product.datecode;
+            }
+            //render product list, regardless of info
+            bindProducts();
+            toggleMinusButton();
+         }
+
+         //#############################################################################################################################
+         function bindProducts()
+         {
+            var html = `<table>
+               <tr>
+                  <td class="FIELD_CAPTION">CATALOG#</td>
+                  <td class="TD_MIDDLE"></td>
+                  <td class="FIELD_CAPTION">SERIAL NUMBER <span class="ASTERIC">*</span></td>
+                  <td class="TD_MIDDLE"></td>
+                  <td class="FIELD_CAPTION">DATE CODE <span class="ASTERIC">*</span></td>
+               </tr>`;
+
+            for(var i=0; i<g_products.length; i++) {
+               html += `<tr>
+                           <td><div class="DIV_FIELD"><input id='txtcatalog${g_products[i].id}' class="FIELD_TEXTBOX_2" value='${g_products[i].catalog}'/></div></td>
+                           <td class="TD_MIDDLE"></td>
+                           <td><div class="DIV_FIELD"><input id='txtserial${g_products[i].id}' class="FIELD_TEXTBOX_2" value='${g_products[i].serial}'/></div></td>
+                           <td class="TD_MIDDLE"></td>
+                           <td><div class="DIV_FIELD"><input id='txtdatecode${g_products[i].id}' class="FIELD_TEXTBOX_2" value='${g_products[i].datecode}'/></div></td>
+                        </tr>`;
+            }
+
+            html+= `</table>`;
+
+            $("#divProducts").html(html);
+
+            //add event listeners to 1st row for manual input in case URL missing parameters
+            $("#txtcatalog1").on("change", function(e) { g_products.find(e => e.id == 1).catalog = $("#txtcatalog1").val(); });
+            $("#txtseries1").on("change", function(e) { g_products.find(e => e.id == 1).series = $("#txtseries1").val(); });
+            $("#txtdatecode1").on("change", function(e) { g_products.find(e => e.id == 1).datecode = $("#txtdatecode1").val(); });
+         }
+
+         //#############################################################################################################################
+         //Description : * detect installed camera and use the 1st one to create QRCode reader
+         //-----------------------------------------------------------------------------------------------------------------------------
+         function getCameras()
+         {
+            Html5Qrcode.getCameras()
+               .then((devices) => {
+
+                  if(!devices || devices.length == 0)
+                     return;
+                  
+                  g_camera = devices[0];
+                  console.log(g_camera.label);                                         
+               })
+               .catch(err => {
+                  console.log(err);
+               });
+         }
+
+         //#############################################################################################################################
+         //Description : * bind customer product list
+         //-----------------------------------------------------------------------------------------------------------------------------
+         function parseProduct(sUrl)
+         {
+            const paramObj = getQueryParams(sUrl);
+
+            if(paramObj.hasOwnProperty("catalog") && paramObj.hasOwnProperty("serial") && paramObj.hasOwnProperty("datecode"))
+               return paramObj;
+            
+            return null;
+         }
+
+         //#############################################################################################################################
+         //Description : * 
+         //-----------------------------------------------------------------------------------------------------------------------------
+         function qrcodeSuccessCallback(decodedText, results)
+         {
+            var product = parseProduct(decodedText);
+            if(product)
+            {
+               g_qrreader.pause(true);
+
+               g_products.push({ 
+                  id: g_products.length + 1,
+                  catalog: product.catalog,
+                  serial: product.serial,
+                  datecode: product.datecode,
+               });
+
+               bindProducts();
+               toggleMinusButton();
+
+               stop((err, results) => {
+
+               });
+            }            
+         }
+         
+         //#############################################################################################################################
+         //Description : * 
+         //-----------------------------------------------------------------------------------------------------------------------------
+         function qrcodeErrorCallback(err)
+         {
+            //console.log(err);
+         }
+
+         //#############################################################################################################################
+         //Description : * 
+         //-----------------------------------------------------------------------------------------------------------------------------
+         function regEvents()
+         {
+            $("#btnPlus").on("click", function(e) {
+               start();
+            });
+
+            $("#btnMinus").on("click", function(e) {
+               if(g_products.length > 1) 
+               {
+                  g_products = g_products.filter(e => e.id != g_products.length);
+                  bindProducts();
+                  toggleMinusButton();
+               }                  
+            });
+         }
+
+         //#############################################################################################################################
+         //Description : * 
+         //-----------------------------------------------------------------------------------------------------------------------------
+         function toggleMinusButton()
+         {
+            $("#btnMinus").prop("disabled", g_products.length < 2);
+         }
+
+         //#############################################################################################################################
+         //Description : * 
+         //-----------------------------------------------------------------------------------------------------------------------------
+         function start()
+         {
+            if($("#selFacingMode").val() == "")
+            {
+               if(!g_camera) {
+                  alert("No camera detected.");
+                  return;
+               }
+            }            
+
+            //create configuration
+            const config = {
+               fps: 10,
+               qrbox: { width: 350, height: 350 }
+            };
+
+            g_qrreader = new Html5Qrcode("divQRReader");  
+
+            //start QRCode reader
+            if($("#selFacingMode").val() == "")
+            {
+               g_qrreader.start(
+                  { deviceId: { exact: g_camera.id } },
+                  config,
+                  qrcodeSuccessCallback,
+                  qrcodeErrorCallback
+               );
+            }
+            else
+            {
+               g_qrreader.start(
+                  { facingMode: { exact: $("#selFacingMode").val() } },
+                  config,
+                  qrcodeSuccessCallback,
+                  qrcodeErrorCallback
+               );
+            }            
+         }
+
+         //#############################################################################################################################
+         //Description : * 
+         //-----------------------------------------------------------------------------------------------------------------------------
+         function stop(callback)
+         {
+            if(!g_qrreader)
+               callback("QRCode Reader is undefined", undefined);
+
+            //stop QRCode reader
+            g_qrreader.stop()
+               .then((ignore) => {
+                  callback(undefined, "OK");
+               })
+               .catch(err => {
+                  callback(err, undefined);
+               });
+
+            g_qrreader = null;
+         }
+         
+         //#############################################################################################################################
+         //Description : * parse page url 
+         //-----------------------------------------------------------------------------------------------------------------------------
+         function getQueryParams(sUrl)
+         {
+            const paramObj = {};            
+            
+            const paramArr = sUrl.slice(sUrl.indexOf('?') + 1).split('&');
+            paramArr.map(param => {
+               const [key, val] = param.split("=");
+               paramObj[key] = val;
+            });
+
+            return paramObj;
+         }
+      </script>
+      <style>
+         .DIV_FIELD {
+            border-radius: 3px;
+            border: 1px solid gray;
+            height: 30px;
+            padding: 3px;
+         }
+         .BUTTON {
+            background-color: rgb(9, 57, 129);
+            color: white;
+            height: 40px;
+            font-size: 15px; 
+            font-family: arial;
+            border-radius: 4px;
+            padding: 0px 10px 0px 10px
+         }
+         .PAGE_HEADER {
+            color:midnightblue; 
+            font-size:35px; 
+            font-family: arial;
+         }
+         .FIELD_CAPTION {
+            font-size: 13px;
+            font-family: Arial;
+         }
+         .TD_MIDDLE {
+            width: 20px;
+         }
+         .FIELD_TEXTBOX {
+            border: none;
+            height: 27px; 
+            width: 440px;           
+         }
+         .FIELD_TEXTBOX_2 {
+            border: none;
+            height: 27px; 
+            width: 290px;           
+         }
+         .FIELD_PADDING {
+            height:4px;
+         }
+         .ASTERIC {
+            color:brown;
+         }
+         .REQUIRED_FIELD {
+            color: brown;
+            font-size: 16px;
+            font-family: arial;
+         }
+         .PLUS_BUTTON {
+            height: 40px;
+            width: 40px;
+            border: 1px solid gray;
+            border-radius: 3px;
+            background-color: white;
+            font-size: 20px;
+         }
+      </style>
+   </head>
+   <body style="width:100%;">
+      <table align="center" cellpadding="2" cellspacing="0">
+         <tr><td colspan="3" class="PAGE_HEADER">Product Resgistration</td></tr>
+
+         <tr><td class="FIELD_PADDING"></td></tr>         
+         <tr><td class="FIELD_PADDING"></td></tr>       
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr><td colspan="3" class="REQUIRED_FIELD">* Required field</td></tr>
+         <tr>
+            <td class="FIELD_CAPTION">FIRST NAME <span class="ASTERIC">*</span></td>
+            <td class="TD_MIDDLE"></td>
+            <td class="FIELD_CAPTION">LAST NAME *</td>
+         </tr>
+         <tr>
+            <td><div class="DIV_FIELD"><input class="FIELD_TEXTBOX"/></div></td>
+            <td class="TD_MIDDLE"></td>
+            <td><div class="DIV_FIELD"><input class="FIELD_TEXTBOX"/></div></td>
+         </tr>
+
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr><td colspan="3" class="FIELD_CAPTION">COMPANY NAME (IF APPLICABLE)</td></tr>
+         <tr><td colspan="3"><div class="DIV_FIELD"><input class="FIELD_TEXTBOX"/></div></td></tr>
+
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr>
+            <td class="FIELD_CAPTION">STREET <span class="ASTERIC">*</span></td>
+            <td class="TD_MIDDLE"></td>
+            <td class="FIELD_CAPTION">CITY <span class="ASTERIC">*</span></td>
+         </tr>
+         <tr>
+            <td><div class="DIV_FIELD"><input class="FIELD_TEXTBOX"/></div></td>
+            <td class="TD_MIDDLE"></td>
+            <td><div class="DIV_FIELD"><input class="FIELD_TEXTBOX"/></div></td>
+         </tr>
+         
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr>
+            <td class="FIELD_CAPTION">STATE <span class="ASTERIC">*</span></td>
+            <td class="TD_MIDDLE"></td>
+            <td class="FIELD_CAPTION">ZIP CODE <span class="ASTERIC">*</span></td>
+         </tr>
+         <tr>
+            <td><div class="DIV_FIELD"><input class="FIELD_TEXTBOX"/></div></td>
+            <td class="TD_MIDDLE"></td>
+            <td><div class="DIV_FIELD"><input class="FIELD_TEXTBOX"/></div></td>
+         </tr>
+
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr>
+            <td class="FIELD_CAPTION">COUNTRY IF NOT US <span class="ASTERIC">*</span></td>
+            <td class="TD_MIDDLE"></td>
+            <td class="FIELD_CAPTION">PROVINCE (CANADA)</td>
+         </tr>
+         <tr>
+            <td><div class="DIV_FIELD"><input class="FIELD_TEXTBOX" value="US"/></div></td>
+            <td class="TD_MIDDLE"></td>
+            <td><div class="DIV_FIELD"><input class="FIELD_TEXTBOX"/></div></td>
+         </tr>
+
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr>
+            <td class="FIELD_CAPTION">PHONE NUMBER <span class="ASTERIC">*</span></td>
+            <td class="TD_MIDDLE"></td>
+            <td class="FIELD_CAPTION">EMAIL <span class="ASTERIC">*</span></td>
+         </tr>
+         <tr>
+            <td><div class="DIV_FIELD"><input class="FIELD_TEXTBOX" value="US"/></div></td>
+            <td class="TD_MIDDLE"></td>
+            <td><div class="DIV_FIELD"><input class="FIELD_TEXTBOX"/></div></td>
+         </tr>
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr><td colspan="3"class="FIELD_CAPTION">CUSTOMER TYPE <span class="ASTERIC">*</span></td></tr>
+         <tr><td colspan="3"><div class="DIV_FIELD">
+            <select class="FIELD_TEXTBOX" style="width:950px;">
+               <option value="Enduser">End user</option>
+               <option value="Contractor">Contractor/E;ectrician/Installer</option>
+               <option value="Distributor">Distributor</option>
+               <option value="OEM">OEM</option>
+               <option value="Other">Other</option>
+            </select></div>
+         </tr>
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr>
+            <td class="FIELD_CAPTION">DATE OF PURCHASE <span class="ASTERIC">*</span></td>
+            <td class="TD_MIDDLE"></td>
+            <td class="FIELD_CAPTION">PURCHASE ORDER / RECEIPT COPY <span class="ASTERIC">*</span></td>
+         </tr>
+         <tr>
+            <td><div class="DIV_FIELD"><input class="FIELD_TEXTBOX" type="date" placeholder="mm/dd/yyyy"/></div></td>
+            <td class="TD_MIDDLE"></td>
+            <td><div class="DIV_FIELD"><input class="FIELD_TEXTBOX"/></div></td>
+         </tr>
+         
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr><td colspan="3" class="FIELD_CAPTION">PRODUCTS PURCHASED</td></tr>
+
+         <tr><td colspan="3" style="padding:0px;">
+            <div id="divProducts"></div>
+         </td></tr>
+
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr><td class="FIELD_PADDING"></td></tr>   
+         <tr><td align="center" colspan="3">
+            <table cellpadding="0" cellspacing="0">
+               <tr>
+                  <td>
+                     <input id="btnPlus" value="+" type="button" class="PLUS_BUTTON"/>
+                     <input id="btnMinus" value="-" type="button" class="PLUS_BUTTON"/>
+                  </td>
+                  <td style="padding-left:20px;">
+                     <div class="DIV_FIELD" style="width:200px;">
+                        <select id="selFacingMode" class="FIELD_TEXTBOX" style="width:195px;">
+                           <option value="">Desktop camera</option>
+                           <option value="user">Mobile front camera</option>
+                           <option value="environment" selected>Mobile back camera</option>
+                        </select>
+                     </div>                     
+                  </td>
+               </tr>
+            </table>
+         </td></tr>
+         
+         <tr><td align="center" colspan="3"><div id="divQRReader" style="width:500px;"></div></td></tr>
+
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr><td colspan="3" class="FIELD_CAPTION">PLEASE ENSURE YOU'VE READ OUR WARRANTY TERMS AND CONDITION <span class="ASTERIC">*</span></td></tr>
+         <tr><td colspan="3" style="padding:0px;" class="FIELD_CAPTION"><input type="checkbox"/>&nbsp;I HAVE READ AND UNDERSTAND THE TERMS AND CONDITIONS</td></tr>
+
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr><td colspan="3" class="FIELD_CAPTION">PLEASE ENSURE YOU'VE READ OUR WARRANTY PRIVACY POLICY <span class="ASTERIC">*</span></td></tr>
+         <tr><td colspan="3" style="padding:0px;" class="FIELD_CAPTION"><input type="checkbox"/>&nbsp;I HAVE READ AND UNDERSTAND THE PRIVACY POLICY</td></tr>
+
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr><td class="FIELD_PADDING"></td></tr>
+         <tr><td colspan="3" align="center"><input type="button" class="BUTTON" value="COMPLETE REGISTRATION"/></td></tr>
+      </table>      
+      
+   </body>
+</html>
